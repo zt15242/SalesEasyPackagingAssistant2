@@ -1,0 +1,69 @@
+<!-- Plugin Configuration File. Read more: https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html -->
+<idea-plugin>
+    <!-- Unique identifier of the plugin. It should be FQN. It cannot be changed between the plugin versions. -->
+    <id>top.javaxiaowu.SalesEasyPackagingAssistant</id>
+
+    <!-- Public plugin name should be written in Title Case.
+         Guidelines: https://plugins.jetbrains.com/docs/marketplace/plugin-overview-page.html#plugin-name -->
+    <name>SalesEasyPackagingAssistant</name>
+
+    <!-- A displayed Vendor name or Organization ID displayed on the Plugins Page. -->
+    <vendor email="2717718875@qq.com" url="https://www.javaxiaowu.top">晓雾技术</vendor>
+
+    <!-- Description of the plugin displayed on the Plugin Page and IDE Plugin Manager.
+         Simple HTML elements (text formatting, paragraphs, and lists) can be added inside of <![CDATA[ ]]> tag.
+         Guidelines: https://plugins.jetbrains.com/docs/marketplace/plugin-overview-page.html#plugin-description -->
+    <description><![CDATA[
+    <p>SalesEasy Packaging Assistant - An IntelliJ IDE plugin that provides intelligent file packaging and configuration generation for sales management systems.</p>
+    <p>Key Features:</p>
+    <ul>
+      <li><b>File Packaging</b>: Support for selecting multiple files and folders with one-click packaging into ZIP files</li>
+      <li><b>Automatic Configuration Generation</b>: Automatically detects files containing specific keywords (Event, EventImpl, Trigger, ScheduleJob, etc.) and intelligently generates scriptTrigger.xml configuration files</li>
+      <li><b>Version Management</b>: Automatically tracks and manages export versions based on three-level paths (e.g., other.rainbow.inventoryview), with version numbers incrementing as V1.0, V2.0, V3.0, etc., and ZIP filenames appended with corresponding versions</li>
+      <li><b>Multiple Configuration Types Support</b>:
+        <ul>
+          <li>Approval Event Configuration (ApprovalEvent) - filename contains <code>Event</code></li>
+          <li>Workflow Event Configuration (WorkflowEvent) - filename contains <code>Event</code></li>
+          <li>Visual Flow Configuration (StageProcessEvent) - filename contains <code>Event</code></li>
+          <li>Auto Flow Configuration (AutoFlowEvent) - filename contains <code>Event</code></li>
+          <li>Rule Event Configuration (RuleEvent) - filename contains <code>Event</code></li>
+          <li>Schedule Job Configuration (ScheduleJob) - filename contains <code>ScheduleJob</code></li>
+          <li>Trigger Configuration (Trigger) - filename contains <code>Trigger</code> (excluding Event)</li>
+        </ul>
+      </li>
+      <li><b>Interactive Configuration</b>: Through intuitive configuration dialogs, users can:
+        <ul>
+          <li>Select configuration type</li>
+          <li>Input object name</li>
+          <li>Select operation options (e.g., submit, agree, add, delete, etc.)</li>
+          <li>Select execution timing (validate, before, after)</li>
+          <li>Configure execution order</li>
+        </ul>
+      </li>
+      <li><b>Automatic Path Recognition</b>: Automatically generates class names based on file relative paths without manual input</li>
+      <li><b>Centralized Management</b>: All configurations are unified and managed in a single scriptTrigger.xml file, automatically added to the ZIP package root directory</li>
+      <li><b>中文: SalesEasy 销售易打包助手</b> - IntelliJ IDE 插件，支持文件打包、自动配置生成、版本号管理等功能</li>
+    </ul>
+    ]]></description>
+
+    <!-- Product and plugin compatibility requirements.
+         Read more: https://plugins.jetbrains.com/docs/intellij/plugin-compatibility.html -->
+    <depends>com.intellij.modules.platform</depends>
+
+    <!-- Extension points defined by the plugin.
+         Read more: https://plugins.jetbrains.com/docs/intellij/plugin-extension-points.html -->
+    <extensions defaultExtensionNs="com.intellij">
+
+    </extensions>
+    <version>1.0.0</version>
+    <actions>
+        <action id="PackageAction" class="top.javaxiaowu.saleseasypackagingassistant.actions.PackageAction" text="Package Files" description="Package selected files into ZIP">
+            <!-- 添加到 Tools 菜单 -->
+            <add-to-group group-id="ToolsMenu" anchor="last" />
+            <!-- 也添加到项目树右键菜单 -->
+            <add-to-group group-id="ProjectViewPopupMenu" anchor="last" />
+            <!-- 添加快捷键：Ctrl+Shift+P -->
+            <keyboard-shortcut keymap="$default" first-keystroke="ctrl shift p" />
+        </action>
+    </actions>
+</idea-plugin>
