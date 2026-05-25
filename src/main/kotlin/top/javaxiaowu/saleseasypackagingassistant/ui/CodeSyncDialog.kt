@@ -9,6 +9,7 @@ import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.ui.components.JBScrollPane
+import com.intellij.ui.components.JBTabbedPane
 import com.intellij.ui.table.JBTable
 import top.javaxiaowu.saleseasypackagingassistant.config.ApiConfig
 import top.javaxiaowu.saleseasypackagingassistant.utils.HttpClient
@@ -42,20 +43,59 @@ class CodeSyncDialog(
 
     private val tableModel: DefaultTableModel
     private val table: JBTable
+    
+    // Lapp Table components
+    private val lappTableModel: DefaultTableModel
+    private val lappTable: JBTable
+
+    // Nex Table components
+    private val nexTableModel: DefaultTableModel
+    private val nexTable: JBTable
     private val gson = Gson()
     
-    // Pagination controls
+    // Pagination controls for Business Code (Tab 1)
     private val pageLabel = JLabel("第 1 页")
     private val prevButton = JButton("<")
     private val nextButton = JButton(">")
     private val pageSizeCombo = JComboBox(arrayOf(10, 20, 50, 100))
     private val searchField = JBTextField(20)
     private val searchButton = JButton("搜索")
+
+    // Pagination controls for Page Code (Tab 2)
+    private val lappPageLabel = JLabel("第 1 页")
+    private val lappPrevButton = JButton("<")
+    private val lappNextButton = JButton(">")
+    private val lappPageSizeCombo = JComboBox(arrayOf(10, 20, 50, 100))
+    private val lappSearchField = JBTextField(20)
+    private val lappSearchButton = JButton("搜索")
+
+    // Pagination controls for Nex Extension (Tab 3)
+    private val nexPageLabel = JLabel("第 1 页")
+    private val nexPrevButton = JButton("<")
+    private val nexNextButton = JButton(">")
+    private val nexPageSizeCombo = JComboBox(arrayOf(10, 20, 50, 100))
+    private val nexSearchField = JBTextField(20)
+    private val nexSearchButton = JButton("搜索")
     
     // State
     private var currentPage = 1
     private var pageSize = 20
     private var totalRecords = 0
+
+    // Lapp State
+    private var lappCurrentPage = 1
+    private var lappPageSize = 20
+    private var lappTotalRecords = 0
+    private var lappSearchKeyword = ""
+    private var lappPackageList = mutableListOf<LappPackageItem>()
+
+    // Nex State
+    private var nexCurrentPage = 1
+    private var nexPageSize = 20
+    private var nexTotalRecords = 0
+    private var nexSearchKeyword = ""
+    private var nexList = mutableListOf<NexItem>()
+
     private var cookies: String? = null
     private var searchKeyword = ""
     private var packageList = mutableListOf<PackageItem>()
@@ -76,6 +116,26 @@ class CodeSyncDialog(
         }
         table = JBTable(tableModel)
         setupTable()
+
+        // Setup Lapp Table
+        val lappColumnNames = arrayOf("页面组件名称", "SubPath", "当前版本", "更新时间", "操作")
+        lappTableModel = object : DefaultTableModel(lappColumnNames, 0) {
+            override fun isCellEditable(row: Int, column: Int): Boolean {
+                return column == 4
+            }
+        }
+        lappTable = JBTable(lappTableModel)
+        setupLappTable()
+
+        // Setup Nex Table
+        val nexColumnNames = arrayOf("代码名称", "业务对象名称", "Nex类型", "客户端类型", "当前版本", "编辑时间", "操作")
+        nexTableModel = object : DefaultTableModel(nexColumnNames, 0) {
+            override fun isCellEditable(row: Int, column: Int): Boolean {
+                return column == 6
+            }
+        }
+        nexTable = JBTable(nexTableModel)
+        setupNexTable()
 
         init()
         
@@ -116,9 +176,35 @@ class CodeSyncDialog(
         table.rowHeight = 30
     }
 
+    private fun setupLappTable() {
+        lappTable.columnModel.getColumn(4).cellRenderer = LappActionButtonRenderer()
+        lappTable.columnModel.getColumn(4).cellEditor = LappActionButtonEditor()
+        
+        lappTable.columnModel.getColumn(0).preferredWidth = 200
+        lappTable.columnModel.getColumn(1).preferredWidth = 200
+        lappTable.columnModel.getColumn(2).preferredWidth = 80
+        lappTable.columnModel.getColumn(3).preferredWidth = 180
+        lappTable.columnModel.getColumn(4).preferredWidth = 160
+        lappTable.rowHeight = 30
+    }
+
+    private fun setupNexTable() {
+        nexTable.columnModel.getColumn(6).cellRenderer = NexActionButtonRenderer()
+        nexTable.columnModel.getColumn(6).cellEditor = NexActionButtonEditor()
+        
+        nexTable.columnModel.getColumn(0).preferredWidth = 200
+        nexTable.columnModel.getColumn(1).preferredWidth = 150
+        nexTable.columnModel.getColumn(2).preferredWidth = 80
+        nexTable.columnModel.getColumn(3).preferredWidth = 80
+        nexTable.columnModel.getColumn(4).preferredWidth = 80
+        nexTable.columnModel.getColumn(5).preferredWidth = 150
+        nexTable.columnModel.getColumn(6).preferredWidth = 100
+        nexTable.rowHeight = 30
+    }
+
     override fun createCenterPanel(): JComponent {
-        val panel = JPanel(BorderLayout())
-        panel.preferredSize = Dimension(900, 500)
+        val mainPanel = JPanel(BorderLayout())
+        mainPanel.preferredSize = Dimension(900, 550)
 
         // Config Panel (Top)
         val configPanel = JPanel(FlowLayout(FlowLayout.LEFT))
@@ -141,8 +227,14 @@ class CodeSyncDialog(
         }
         configPanel.add(changePathBtn)
         
-        panel.add(configPanel, BorderLayout.NORTH)
+        mainPanel.add(configPanel, BorderLayout.NORTH)
 
+        // Tabbed Pane for Navigation
+        val tabbedPane = JBTabbedPane()
+
+        // Tab 1: 业务代码
+        val businessPanel = JPanel(BorderLayout())
+        
         // Toolbar / Pagination
         val toolbar = JPanel(FlowLayout(FlowLayout.RIGHT))
         
@@ -169,7 +261,6 @@ class CodeSyncDialog(
             }
         }
         
-    
         // Search bar
         val searchPanel = JPanel(FlowLayout(FlowLayout.LEFT))
         searchPanel.add(JLabel("搜索:"))
@@ -189,10 +280,116 @@ class CodeSyncDialog(
         toolbar.add(pageLabel)
         toolbar.add(nextButton)
         
-        panel.add(JBScrollPane(table), BorderLayout.CENTER)
-        panel.add(toolbar, BorderLayout.SOUTH)
+        businessPanel.add(JBScrollPane(table), BorderLayout.CENTER)
+        businessPanel.add(toolbar, BorderLayout.SOUTH)
 
-        return panel
+        // Tab 2: 页面代码
+        val pageCodePanel = JPanel(BorderLayout())
+        
+        // Lapp Toolbar / Pagination
+        val lappToolbar = JPanel(FlowLayout(FlowLayout.RIGHT))
+        
+        lappPrevButton.addActionListener {
+            if (lappCurrentPage > 1) {
+                lappCurrentPage--
+                fetchLappData()
+            }
+        }
+        
+        lappNextButton.addActionListener {
+            lappCurrentPage++
+            fetchLappData()
+        }
+        
+        lappPageSizeCombo.selectedItem = lappPageSize
+        lappPageSizeCombo.addActionListener {
+            val newSize = lappPageSizeCombo.selectedItem as Int
+            if (newSize != lappPageSize) {
+                lappPageSize = newSize
+                lappCurrentPage = 1
+                fetchLappData()
+            }
+        }
+        
+        // Lapp Search bar
+        val lappSearchPanel = JPanel(FlowLayout(FlowLayout.LEFT))
+        lappSearchPanel.add(JLabel("搜索:"))
+        lappSearchPanel.add(lappSearchField)
+        lappSearchPanel.add(lappSearchButton)
+        
+        lappSearchButton.addActionListener {
+            lappSearchKeyword = lappSearchField.text.trim()
+            lappCurrentPage = 1
+            fetchLappData()
+        }
+
+        lappToolbar.add(lappSearchPanel)
+        lappToolbar.add(JLabel("每页显示:"))
+        lappToolbar.add(lappPageSizeCombo)
+        lappToolbar.add(lappPrevButton)
+        lappToolbar.add(lappPageLabel)
+        lappToolbar.add(lappNextButton)
+        
+        pageCodePanel.add(JBScrollPane(lappTable), BorderLayout.CENTER)
+        pageCodePanel.add(lappToolbar, BorderLayout.SOUTH)
+
+        // Tab 3: nex扩展
+        val nexExtensionPanel = JPanel(BorderLayout())
+
+        // Nex Toolbar / Pagination
+        val nexToolbar = JPanel(FlowLayout(FlowLayout.RIGHT))
+        
+        nexPrevButton.addActionListener {
+            if (nexCurrentPage > 1) {
+                nexCurrentPage--
+                fetchNexData()
+            }
+        }
+        
+        nexNextButton.addActionListener {
+            nexCurrentPage++
+            fetchNexData()
+        }
+        
+        nexPageSizeCombo.selectedItem = nexPageSize
+        nexPageSizeCombo.addActionListener {
+            val newSize = nexPageSizeCombo.selectedItem as Int
+            if (newSize != nexPageSize) {
+                nexPageSize = newSize
+                nexCurrentPage = 1
+                fetchNexData()
+            }
+        }
+        
+        // Nex Search bar
+        val nexSearchPanel = JPanel(FlowLayout(FlowLayout.LEFT))
+        nexSearchPanel.add(JLabel("搜索:"))
+        nexSearchPanel.add(nexSearchField)
+        nexSearchPanel.add(nexSearchButton)
+        
+        nexSearchButton.addActionListener {
+            nexSearchKeyword = nexSearchField.text.trim()
+            nexCurrentPage = 1
+            fetchNexData()
+        }
+
+        nexToolbar.add(nexSearchPanel)
+        nexToolbar.add(JLabel("每页显示:"))
+        nexToolbar.add(nexPageSizeCombo)
+        nexToolbar.add(nexPrevButton)
+        nexToolbar.add(nexPageLabel)
+        nexToolbar.add(nexNextButton)
+        
+        nexExtensionPanel.add(JBScrollPane(nexTable), BorderLayout.CENTER)
+        nexExtensionPanel.add(nexToolbar, BorderLayout.SOUTH)
+
+        tabbedPane.addTab("业务代码", businessPanel)
+        tabbedPane.addTab("页面代码", pageCodePanel)
+        tabbedPane.addTab("nex扩展", nexExtensionPanel)
+
+        mainPanel.add(tabbedPane, BorderLayout.CENTER)
+
+        return mainPanel
     }
     
     private fun fetchCookiesAndData() {
@@ -238,6 +435,8 @@ class CodeSyncDialog(
                         
                         // Fetch Data
                         fetchDataInternal()
+                        fetchLappDataInternal()
+                        fetchNexDataInternal()
                     } else {
                         SwingUtilities.invokeLater {
                             JOptionPane.showMessageDialog(rootPane, "无法获取环境Cookie: ${cookieResponse.message}", "错误", JOptionPane.ERROR_MESSAGE)
@@ -252,6 +451,101 @@ class CodeSyncDialog(
         })
     }
     
+    private fun fetchNexData() {
+        if (cookies == null) {
+            fetchCookiesAndData()
+            return
+        }
+        
+        nexSearchButton.isEnabled = false
+        nexSearchButton.text = "搜索中..."
+        
+        ApplicationManager.getApplication().executeOnPooledThread {
+            try {
+                fetchNexDataInternal()
+            } finally {
+                SwingUtilities.invokeLater {
+                    nexSearchButton.isEnabled = true
+                    nexSearchButton.text = "搜索"
+                }
+            }
+        }
+    }
+    
+    private fun fetchNexDataInternal() {
+        try {
+            // POST /rest/metadata/v3.0/ui/develop/nex/admin/codes/v2/actions/queryNexList
+            val targetUrl = "$envUrl/rest/metadata/v3.0/ui/develop/nex/admin/codes/v2/actions/queryNexList"
+            
+            val headers = mapOf(
+                "Cookie" to (cookies ?: ""),
+                "Content-Type" to "application/json"
+            )
+            
+            val body = mutableMapOf<String, Any>(
+                "pageNo" to nexCurrentPage,
+                "pageSize" to nexPageSize
+            )
+            if (nexSearchKeyword.isNotEmpty()) {
+                body["keyword"] = nexSearchKeyword
+                body["codeName"] = nexSearchKeyword
+            }
+            
+            val response = HttpClient.requestFullUrl("POST", targetUrl, body, headers, Map::class.java)
+            
+            SwingUtilities.invokeLater {
+                if (response.success && response.data != null) {
+                    processNexResponse(response.data as Map<String, Any>)
+                } else {
+                    JOptionPane.showMessageDialog(rootPane, "Nex 请求失败: ${response.message}", "错误", JOptionPane.ERROR_MESSAGE)
+                }
+                updateNexPaginationControls()
+            }
+        } catch (e: Exception) {
+            SwingUtilities.invokeLater {
+                JOptionPane.showMessageDialog(rootPane, "Nex 数据获取异常: ${e.message}", "错误", JOptionPane.ERROR_MESSAGE)
+            }
+        }
+    }
+    
+    private fun processNexResponse(rootData: Map<String, Any>) {
+        nexTableModel.rowCount = 0
+        nexList.clear()
+        
+        nexTotalRecords = (rootData["totalSize"] as? Number)?.toInt() ?: 0
+        val dataList = rootData["data"] as? List<Map<String, Any>> ?: emptyList()
+        
+        val sdf = java.text.SimpleDateFormat("yyyy/MM/dd HH:mm")
+        
+        dataList.forEach { item ->
+            val codeName = item["codeName"] as? String ?: ""
+            val objectName = item["objectName"] as? String ?: ""
+            val pageType = (item["pageType"] as? Number)?.toInt() ?: 1
+            val pageTypeStr = if (pageType == 1) "Nex 1.0" else "Nex 2.0"
+            val clientType = item["clientType"] as? String ?: "web"
+            val versionNum = (item["versionNum"] as? Number)?.toInt() ?: 1
+            val editAt = (item["editAt"] as? Number)?.toLong() ?: 0L
+            val timeStr = if (editAt > 0) sdf.format(java.util.Date(editAt)) else ""
+            val id = (item["id"] as? Number)?.toString() ?: ""
+            
+            nexTableModel.addRow(arrayOf(
+                codeName, objectName, pageTypeStr, clientType, versionNum.toString(), timeStr, ""
+            ))
+            
+            nexList.add(NexItem(
+                codeName, objectName, pageType, clientType, versionNum, editAt, id
+            ))
+        }
+        
+        val totalPages = if (nexPageSize > 0) (nexTotalRecords + nexPageSize - 1) / nexPageSize else 0
+        nexPageLabel.text = "第 $nexCurrentPage 页 / 共 $totalPages 页"
+        nexNextButton.isEnabled = nexCurrentPage < totalPages
+    }
+    
+    private fun updateNexPaginationControls() {
+        nexPrevButton.isEnabled = nexCurrentPage > 1
+    }
+
     private fun fetchData() {
         if (cookies == null) {
             fetchCookiesAndData() // Retry cookie fetch if missing
@@ -274,6 +568,105 @@ class CodeSyncDialog(
         }
     }
     
+    private fun fetchLappData() {
+        if (cookies == null) {
+            fetchCookiesAndData()
+            return
+        }
+        
+        lappSearchButton.isEnabled = false
+        lappSearchButton.text = "搜索中..."
+        
+        ApplicationManager.getApplication().executeOnPooledThread {
+            try {
+                fetchLappDataInternal()
+            } finally {
+                SwingUtilities.invokeLater {
+                    lappSearchButton.isEnabled = true
+                    lappSearchButton.text = "搜索"
+                }
+            }
+        }
+    }
+    
+    private fun fetchLappDataInternal() {
+        try {
+            // GET /rest/metadata/v2.0/dx/logic/lapp/?pageNo=1&pageSize=10
+            val sb = StringBuilder("$envUrl/rest/metadata/v2.0/dx/logic/lapp/?pageNo=$lappCurrentPage&pageSize=$lappPageSize")
+            if (lappSearchKeyword.isNotEmpty()) {
+                val encodedKw = java.net.URLEncoder.encode(lappSearchKeyword, "UTF-8")
+                sb.append("&keyword=$encodedKw")
+                sb.append("&name=$encodedKw")
+                sb.append("&subPath=$encodedKw")
+            }
+            val targetUrl = sb.toString()
+            
+            val headers = mapOf("Cookie" to (cookies ?: ""))
+            
+            val response = HttpClient.requestFullUrl("GET", targetUrl, null, headers, Map::class.java)
+            
+            SwingUtilities.invokeLater {
+                if (response.success && response.data != null) {
+                    processLappResponse(response.data as Map<String, Any>)
+                } else {
+                    JOptionPane.showMessageDialog(rootPane, "Lapp 请求失败: ${response.message}", "错误", JOptionPane.ERROR_MESSAGE)
+                }
+                updateLappPaginationControls()
+            }
+        } catch (e: Exception) {
+            SwingUtilities.invokeLater {
+                JOptionPane.showMessageDialog(rootPane, "Lapp 数据获取异常: ${e.message}", "错误", JOptionPane.ERROR_MESSAGE)
+            }
+        }
+    }
+    
+    private fun processLappResponse(rootData: Map<String, Any>) {
+        lappTableModel.rowCount = 0
+        lappPackageList.clear()
+        
+        // Parse rootData:
+        // rootData["batchData"] as? List<Map<String, Any>>
+        // rootData["totalSize"] as? Number
+        lappTotalRecords = (rootData["totalSize"] as? Number)?.toInt() ?: 0
+        val batchData = rootData["batchData"] as? List<Map<String, Any>> ?: emptyList()
+        
+        val sdf = java.text.SimpleDateFormat("yyyy/MM/dd HH:mm")
+        
+        batchData.forEach { item ->
+            val name = item["name"] as? String ?: ""
+            val subPath = item["subPath"] as? String ?: ""
+            val instanceVersion = item["instanceVersion"] as? String ?: ""
+            
+            val lastUploadTime = (item["lastUploadTime"] as? Number)?.toLong() ?: (item["updatedAt"] as? Number)?.toLong() ?: 0L
+            val timeStr = if (lastUploadTime > 0) sdf.format(java.util.Date(lastUploadTime)) else ""
+            
+            // updatedBy is Long/Number, let's just use updatedBy or createdBy as a string representation, or updatedBy username if available.
+            // Since API doesn't seem to contain a clean userName in batchData directly (only updatedBy: 4166812457207829),
+            // let's show the user id or empty, or "Admin" / updatedBy.
+            val updatedBy = (item["updatedBy"] as? Number)?.toString() ?: ""
+            
+            val zipUrl = item["zipUrl"] as? String ?: ""
+            val baseId = (item["baseId"] as? Number)?.toString() ?: ""
+            val id = (item["id"] as? Number)?.toString() ?: ""
+            
+            lappTableModel.addRow(arrayOf(
+                name, subPath, instanceVersion, timeStr, ""
+            ))
+            
+            lappPackageList.add(LappPackageItem(
+                name, subPath, instanceVersion, timeStr, updatedBy, zipUrl, id, baseId
+            ))
+        }
+        
+        val totalPages = if (lappPageSize > 0) (lappTotalRecords + lappPageSize - 1) / lappPageSize else 0
+        lappPageLabel.text = "第 $lappCurrentPage 页 / 共 $totalPages 页"
+        lappNextButton.isEnabled = lappCurrentPage < totalPages
+    }
+    
+    private fun updateLappPaginationControls() {
+        lappPrevButton.isEnabled = lappCurrentPage > 1
+    }
+
     private fun fetchDataInternal() {
         try {
             // /rest/metadata/v2.0/dx/logic/packages?type=0&pageNo=1&pageSize=20
@@ -733,7 +1126,191 @@ class CodeSyncDialog(
         val uploader: String,
         val uploadFile: String
     )
+
+    private data class LappPackageItem(
+        val name: String,
+        val subPath: String,
+        val version: String,
+        val time: String,
+        val uploader: String,
+        val zipUrl: String,
+        val id: String,
+        val baseId: String
+    )
+
+    private data class NexItem(
+        val codeName: String,
+        val objectName: String,
+        val pageType: Int,
+        val clientType: String,
+        val versionNum: Int,
+        val editAt: Long,
+        val id: String
+    )
     
+    // Components
+    private fun handleLappDownload(row: Int) {
+        if (row < 0 || row >= lappPackageList.size) return
+        val item = lappPackageList[row]
+        
+        if (item.zipUrl.isEmpty()) {
+            JOptionPane.showMessageDialog(rootPane, "暂无下载链接", "提示", JOptionPane.WARNING_MESSAGE)
+            return
+        }
+        
+        val projectBase = project?.basePath
+        if (projectBase == null) {
+            JOptionPane.showMessageDialog(rootPane, "无法确定项目根目录", "错误", JOptionPane.ERROR_MESSAGE)
+            return
+        }
+
+        val targetBaseDir = File(projectBase, "frontend/web")
+        if (!targetBaseDir.exists()) {
+             targetBaseDir.mkdirs()
+        }
+        
+        val targetLappDir = File(targetBaseDir, item.subPath)
+        
+        val confirm = JOptionPane.showConfirmDialog(
+            rootPane, 
+            "确定要下载并创建/覆盖页面组件目录 '${item.subPath}' 吗？\n" +
+            "页面名称: ${item.name}\n" +
+            "将在 ${targetLappDir.path} 创建以及覆盖。", 
+            "确认下载页面代码", 
+            JOptionPane.YES_NO_OPTION
+        )
+        
+        if (confirm != JOptionPane.YES_OPTION) return
+        
+        ProgressManager.getInstance().run(object : Task.Backgroundable(project, "正在处理页面代码...", true) {
+            override fun run(indicator: ProgressIndicator) {
+                try {
+                    if (!targetLappDir.exists()) targetLappDir.mkdirs()
+                    else {
+                        indicator.text = "清理旧文件..."
+                        targetLappDir.deleteRecursively()
+                        targetLappDir.mkdirs()
+                    }
+                    
+                    indicator.text = "正在下载..."
+                    val downloadUrl = if (item.zipUrl.startsWith("http")) item.zipUrl else "$envUrl/${item.zipUrl.trimStart('/')}"
+                    val urlObj = java.net.URL(downloadUrl)
+                    val conn = urlObj.openConnection() as java.net.HttpURLConnection
+                    if (!downloadUrl.contains("amazonaws.com") && !downloadUrl.contains("aliyun")) {
+                         if (cookies != null) conn.setRequestProperty("Cookie", cookies)
+                    }
+                    
+                    val tempZip = File.createTempFile("lapp_download", ".zip")
+                    tempZip.deleteOnExit()
+                    BufferedInputStream(conn.inputStream).use { input ->
+                        FileOutputStream(tempZip).use { output ->
+                            input.copyTo(output)
+                        }
+                    }
+                    
+                    indicator.text = "解压并整理文件..."
+                    ZipInputStream(java.io.FileInputStream(tempZip)).use { zis ->
+                       var entry = zis.nextEntry
+                       while (entry != null) {
+                           if (!entry.name.contains("..")) {
+                               val newFile = File(targetLappDir, entry.name)
+                               if (entry.isDirectory) {
+                                   newFile.mkdirs()
+                               } else {
+                                   newFile.parentFile.mkdirs()
+                                   FileOutputStream(newFile).use { it.write(zis.readBytes()) }
+                               }
+                           }
+                           zis.closeEntry()
+                           entry = zis.nextEntry
+                       }
+                    }
+                    tempZip.delete()
+                    
+                    SwingUtilities.invokeLater {
+                        JOptionPane.showMessageDialog(rootPane, "页面代码下载并解压成功！\n位置: ${targetLappDir.path}", "成功", JOptionPane.INFORMATION_MESSAGE)
+                        project?.baseDir?.refresh(false, true)
+                    }
+                    
+                } catch (e: Exception) {
+                    SwingUtilities.invokeLater {
+                        JOptionPane.showMessageDialog(rootPane, "处理失败: ${e.message}", "错误", JOptionPane.ERROR_MESSAGE)
+                    }
+                    e.printStackTrace()
+                }
+            }
+        })
+    }
+
+    private fun handleNexDownload(row: Int) {
+        if (row < 0 || row >= nexList.size) return
+        val item = nexList[row]
+        
+        val projectBase = project?.basePath
+        if (projectBase == null) {
+            JOptionPane.showMessageDialog(rootPane, "无法确定项目根目录", "错误", JOptionPane.ERROR_MESSAGE)
+            return
+        }
+
+        // Determine path: projectRoot/frontend/nex1.0/web or projectRoot/frontend/nex2.0/h5 etc.
+        val nexVerStr = if (item.pageType == 1) "nex1.0" else "nex2.0"
+        val targetBaseDir = File(projectBase, "frontend/$nexVerStr/${item.clientType}")
+        
+        val targetFile = File(targetBaseDir, item.codeName)
+        
+        val confirm = JOptionPane.showConfirmDialog(
+            rootPane, 
+            "确定要下载并覆盖 nex 扩展文件吗？\n" +
+            "代码名称: ${item.codeName}\n" +
+            "保存位置: ${targetFile.path}", 
+            "确认下载 nex 扩展代码", 
+            JOptionPane.YES_NO_OPTION
+        )
+        
+        if (confirm != JOptionPane.YES_OPTION) return
+        
+        ProgressManager.getInstance().run(object : Task.Backgroundable(project, "正在下载 nex 代码...", true) {
+            override fun run(indicator: ProgressIndicator) {
+                try {
+                    indicator.text = "正在下载..."
+                    val targetUrl = "$envUrl/rest/metadata/v3.0/ui/develop/nex/admin/codes/v${item.pageType}/${item.codeName}/${item.clientType}/actions/queryDevelopedCode?codeVersion=${item.versionNum}"
+                    val headers = mapOf("Cookie" to (cookies ?: ""))
+                    
+                    val response = HttpClient.requestFullUrl("GET", targetUrl, null, headers, Map::class.java)
+                    
+                    if (response.success && response.data != null) {
+                        val responseData = response.data as Map<String, Any>
+                        val dataList = responseData["data"] as? List<Map<String, Any>>
+                        val firstItem = dataList?.firstOrNull()
+                        val codeText = firstItem?.get("developedCode") as? String
+                        
+                        if (codeText != null) {
+                            if (!targetBaseDir.exists()) {
+                                targetBaseDir.mkdirs()
+                            }
+                            FileOutputStream(targetFile).use { it.write(codeText.toByteArray()) }
+                            
+                            SwingUtilities.invokeLater {
+                                JOptionPane.showMessageDialog(rootPane, "nex 扩展代码下载成功！\n位置: ${targetFile.path}", "成功", JOptionPane.INFORMATION_MESSAGE)
+                                project?.baseDir?.refresh(false, true)
+                            }
+                        } else {
+                            throw Exception("未找到 developedCode 字段或内容为空")
+                        }
+                    } else {
+                        throw Exception(response.message ?: "下载请求失败")
+                    }
+                    
+                } catch (e: Exception) {
+                    SwingUtilities.invokeLater {
+                        JOptionPane.showMessageDialog(rootPane, "处理失败: ${e.message}", "错误", JOptionPane.ERROR_MESSAGE)
+                    }
+                    e.printStackTrace()
+                }
+            }
+        })
+    }
+
     // Components
     private inner class ActionButtonRenderer : TableCellRenderer {
         override fun getTableCellRendererComponent(
@@ -771,6 +1348,86 @@ class CodeSyncDialog(
             downloadBtn.addActionListener {
                 stopCellEditing()
                 handleDownload(currentRow)
+            }
+        }
+
+        override fun getTableCellEditorComponent(
+            table: JTable?, value: Any?, isSelected: Boolean, row: Int, column: Int
+        ): Component {
+            panel.background = if (isSelected) table?.selectionBackground else table?.background
+            currentRow = row
+            return panel
+        }
+
+        override fun getCellEditorValue(): Any = ""
+    }
+
+    private inner class LappActionButtonRenderer : TableCellRenderer {
+        override fun getTableCellRendererComponent(
+            table: JTable?, value: Any?, isSelected: Boolean, hasFocus: Boolean, row: Int, column: Int
+        ): Component {
+            val panel = JPanel(FlowLayout(FlowLayout.CENTER, 5, 0))
+            panel.isOpaque = true
+            panel.background = if (isSelected) table?.selectionBackground else table?.background
+
+            val downloadBtn = JButton("下载")
+            
+            panel.add(downloadBtn)
+            return panel
+        }
+    }
+
+    private inner class LappActionButtonEditor : AbstractCellEditor(), TableCellEditor {
+        private val panel = JPanel(FlowLayout(FlowLayout.CENTER, 5, 0))
+        private val downloadBtn = JButton("下载")
+        private var currentRow = -1
+
+        init {
+            panel.add(downloadBtn)
+
+            downloadBtn.addActionListener {
+                stopCellEditing()
+                handleLappDownload(currentRow)
+            }
+        }
+
+        override fun getTableCellEditorComponent(
+            table: JTable?, value: Any?, isSelected: Boolean, row: Int, column: Int
+        ): Component {
+            panel.background = if (isSelected) table?.selectionBackground else table?.background
+            currentRow = row
+            return panel
+        }
+
+        override fun getCellEditorValue(): Any = ""
+    }
+
+    private inner class NexActionButtonRenderer : TableCellRenderer {
+        override fun getTableCellRendererComponent(
+            table: JTable?, value: Any?, isSelected: Boolean, hasFocus: Boolean, row: Int, column: Int
+        ): Component {
+            val panel = JPanel(FlowLayout(FlowLayout.CENTER, 5, 0))
+            panel.isOpaque = true
+            panel.background = if (isSelected) table?.selectionBackground else table?.background
+
+            val downloadBtn = JButton("下载")
+            
+            panel.add(downloadBtn)
+            return panel
+        }
+    }
+
+    private inner class NexActionButtonEditor : AbstractCellEditor(), TableCellEditor {
+        private val panel = JPanel(FlowLayout(FlowLayout.CENTER, 5, 0))
+        private val downloadBtn = JButton("下载")
+        private var currentRow = -1
+
+        init {
+            panel.add(downloadBtn)
+
+            downloadBtn.addActionListener {
+                stopCellEditing()
+                handleNexDownload(currentRow)
             }
         }
 
