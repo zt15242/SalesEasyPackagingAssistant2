@@ -49,11 +49,27 @@
     <!-- Product and plugin compatibility requirements.
          Read more: https://plugins.jetbrains.com/docs/intellij/plugin-compatibility.html -->
     <depends>com.intellij.modules.platform</depends>
+    <depends>com.intellij.modules.java</depends>
+    <depends>org.jetbrains.idea.maven</depends>
 
     <!-- Extension points defined by the plugin.
          Read more: https://plugins.jetbrains.com/docs/intellij/plugin-extension-points.html -->
     <extensions defaultExtensionNs="com.intellij">
-
+        <!-- 注册工具窗口 -->
+        <toolWindow id="SalesEasy Assistant" 
+                    secondary="false" 
+                    icon="AllIcons.General.Settings" 
+                    anchor="right" 
+                    factoryClass="top.javaxiaowu.saleseasypackagingassistant.ui.SalesEasyToolWindowFactory"/>
+        
+        <!-- 注册自定义模块类型 -->
+        <moduleType id="SALESEASY_MODULE_TYPE" 
+                    implementationClass="top.javaxiaowu.saleseasypackagingassistant.project.SalesEasyModuleType"/>
+        
+        <!-- 注册通知组 -->
+        <notificationGroup id="SalesEasy.Notifications" 
+                          displayType="BALLOON" 
+                          isLogByDefault="true"/>
     </extensions>
     <version>1.0.0</version>
     <actions>

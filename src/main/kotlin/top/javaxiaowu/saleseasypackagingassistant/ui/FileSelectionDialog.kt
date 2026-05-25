@@ -92,18 +92,13 @@ class FileSelectionDialog(val project: Project, private val initialSelection: Li
                 println("DEBUG: Tree model reloaded")
                 // 不需要自动展开根节点，让用户手动选择
                 
-                // 如果有初始选择，自动勾选
+                // 如果有初始选择,自动勾选
                 if (!initialSelection.isNullOrEmpty()) {
                     println("DEBUG: Initial selection: ${initialSelection.map { it.path }}")
                     println("DEBUG: Total nodes to check...")
                     selectInitialFiles(currentRoot, initialSelection)
                     println("DEBUG: After selectInitialFiles, checkedNodes size = ${checkedNodes.size}")
-                    // 整个重新刷新树的模型和 UI，确保所有改变都被显示
-                    val treeModel = tree?.model as? javax.swing.tree.DefaultTreeModel
-                    if (treeModel != null) {
-                        treeModel.reload(currentRoot)
-                    }
-                    println("DEBUG: Tree reloaded after selection")
+                    // CheckboxTree.setNodeState 会自动处理 UI 更新,不需要手动 reload
                 }
             }
             
@@ -273,10 +268,10 @@ class FileSelectionDialog(val project: Project, private val initialSelection: Li
     }
     
     private fun selectInitialFiles(parentNode: CheckedTreeNode, filesToSelect: List<VirtualFile>) {
-        // 递归遍历树节点，找到对应的文件并勾选
+        // 递归遍历树节点,找到对应的文件并勾选
         val parentFile = parentNode.userObject as? VirtualFile
         if (parentFile != null) {
-            // 比较路径的最后一部分，以便处理根路径不同的情况
+            // 标准化路径以便比较
             val parentPath = parentFile.path.replace("\\", "/")
             println("DEBUG: Checking parentPath = $parentPath")
             
@@ -284,12 +279,17 @@ class FileSelectionDialog(val project: Project, private val initialSelection: Li
                 val selectPath = selectFile.path.replace("\\", "/")
                 println("DEBUG: Against selectPath = $selectPath")
                 
-                // 如果路径幾乎相合，或者一个路径是另一个路径的后针，则认为是匹配
-                if (parentPath == selectPath || parentPath.endsWith(selectPath)) {
+                // 精确匹配路径
+                if (parentPath == selectPath) {
                     println("DEBUG: MATCH FOUND! Setting ${parentFile.name} as checked")
-                    parentNode.isChecked = true
+                    // 使用 CheckboxTree 的 setNodeState 方法来设置节点状态
+                    tree?.setNodeState(parentNode, true)
                     checkedNodes.add(parentNode)
-                    println("DEBUG: Node ${parentFile.name} isChecked = ${parentNode.isChecked}")
+                    println("DEBUG: Node ${parentFile.name} state set via CheckboxTree")
+                    
+                    // 自动展开该节点及其所有父节点
+                    expandNodePath(parentNode)
+                    println("DEBUG: Node path expanded for ${parentFile.name}")
                     break
                 }
             }
@@ -299,6 +299,24 @@ class FileSelectionDialog(val project: Project, private val initialSelection: Li
         for (i in 0 until parentNode.childCount) {
             val child = parentNode.getChildAt(i) as? CheckedTreeNode ?: continue
             selectInitialFiles(child, filesToSelect)
+        }
+    }
+    
+    private fun expandNodePath(node: CheckedTreeNode) {
+        // 展开从根节点到当前节点的所有父节点
+        val path = mutableListOf<CheckedTreeNode>()
+        var current: CheckedTreeNode? = node
+        
+        // 收集从当前节点到根节点的路径
+        while (current != null) {
+            path.add(0, current)
+            current = current.parent as? CheckedTreeNode
+        }
+        
+        // 展开路径中的每个节点
+        for (pathNode in path) {
+            val treePath = javax.swing.tree.TreePath(pathNode.path)
+            tree?.expandPath(treePath)
         }
     }
 }
